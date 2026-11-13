@@ -158,22 +158,50 @@ export function getRewriteUrl(
   return null;
 }
 
+// Tried in order after a direct fetch. These are third-party services we
+// don't control: the old phos-cors-proxy.azurewebsites.net one is gone.
+const CORS_PROXY_URLS = ["https://cors-proxy-weld-sigma.vercel.app"];
+
+async function fetchText(url: string) {
+  const response = await fetch(url);
+  if (response.status < 200 || response.status > 299)
+    throw new Error(`HTTP ${response.status}`);
+  return response.text();
+}
+
+// `url` is scheme-less (e.g. "pobb.in/abc/raw"), as returned by a UrlRewriter
+export async function fetchRewrittenUrl(url: string) {
+  // Direct first: works whenever the host itself sends CORS headers
+  const attempts = [
+    `https://${url}`,
+    ...CORS_PROXY_URLS.map((proxy) => `${proxy}/${url}`),
+  ];
+
+  const failures: string[] = [];
+  for (const attempt of attempts) {
+    try {
+      return await fetchText(attempt);
+    } catch (e) {
+      failures.push(`${new URL(attempt).host}: ${errorMessage(e)}`);
+    }
+  }
+
+  throw new Error(`Download failed (${failures.join("; ")})`);
+}
+
+export function errorMessage(e: unknown) {
+  if (e instanceof Error) return e.message;
+  return String(e);
+}
+
 export async function fetchStringOrUrl(
   stringOrUrl: string,
   urlRewriters: UrlRewriter[]
 ) {
-  let value: string = stringOrUrl;
-  const url = getRewriteUrl(stringOrUrl, urlRewriters);
-  if (url) {
-    value = await fetch(
-      `https://phos-cors-proxy.azurewebsites.net/${url}`
-    ).then((x) => {
-      if (x.status >= 200 && x.status <= 299) return x.text();
-      return Promise.reject("download failed");
-    });
-  }
+  const url = getRewriteUrl(stringOrUrl.trim(), urlRewriters);
+  if (url) return fetchRewrittenUrl(url);
 
-  return value;
+  return stringOrUrl;
 }
 
 type PipeFunction<T> = (arg: T) => T;
