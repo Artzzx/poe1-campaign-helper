@@ -1,5 +1,10 @@
 import { formStyles } from "../../styles";
-import { UrlRewriter, fetchStringOrUrl, getRewriteUrl } from "../../utility";
+import {
+  UrlRewriter,
+  errorMessage,
+  fetchStringOrUrl,
+  getRewriteUrl,
+} from "../../utility";
 import { TextModal } from "../Modal";
 import { PobData, processPob } from "./pob";
 import styles from "./styles.module.css";
@@ -21,10 +26,20 @@ const URL_REWRITERS: UrlRewriter[] = [
     return `poe.ninja/pob/raw/${match[1]}`;
   },
   (url) => {
-    const match = /pobb\.in\/(.+)$/.exec(url);
+    // pobb.in/<id>, pobb.in/<id>/, pobb.in/<id>?x, pobb.in/<id>/raw
+    const match = /pobb\.in\/(?:pob\/)?([A-Za-z0-9_-]+)/.exec(url);
     if (!match) return null;
 
     return `pobb.in/${match[1]}/raw`;
+  },
+  (url) => {
+    // Path of Building "open in PoB" links: pob://pobbin/<id>, pob://poeninja/<id>
+    const match = /^pob:\/\/(pobbin|poeninja)\/([A-Za-z0-9_-]+)/i.exec(url);
+    if (!match) return null;
+
+    return match[1].toLowerCase() === "pobbin"
+      ? `pobb.in/${match[2]}/raw`
+      : `poe.ninja/pob/raw/${match[2]}`;
   },
   (url) => {
     const match = /youtube.com\/redirect\?.+?q=(.+?)(?:&|$)/.exec(url);
@@ -53,21 +68,32 @@ export function BuildImportForm({ onSubmit, onReset }: BuildImportFormProps) {
         onSubmit={(pobCodeOrUrl) =>
           toast.promise(
             async () => {
-              if (!pobCodeOrUrl) return Promise.reject("invalid pobCodeOrUrl");
-              const pobCode = await fetchStringOrUrl(
-                pobCodeOrUrl,
-                URL_REWRITERS
-              );
+              const input = pobCodeOrUrl?.trim();
+              if (!input) throw new Error("Nothing to import");
 
-              const pobData = processPob(pobCode);
-              if (!pobData) return Promise.reject("parsing failed");
+              const pobCode = (
+                await fetchStringOrUrl(input, URL_REWRITERS)
+              ).trim();
 
+              const { pobData, skippedGems } = processPob(pobCode);
               onSubmit(pobData, pobCode);
+
+              if (skippedGems.length > 0)
+                toast.warn(
+                  `Skipped ${
+                    skippedGems.length
+                  } gem(s) missing from the app's data: ${skippedGems.join(
+                    ", "
+                  )}`,
+                  { autoClose: false }
+                );
             },
             {
               pending: "Importing Build",
               success: "Import Success",
-              error: "Import Failed",
+              error: {
+                render: ({ data }) => `Import Failed: ${errorMessage(data)}`,
+              },
             }
           )
         }

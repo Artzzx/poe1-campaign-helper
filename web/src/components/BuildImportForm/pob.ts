@@ -58,6 +58,7 @@ function cleanPobText(dirty: string) {
 }
 
 function processSkills(
+  skippedGems: Set<string>,
   requiredGems: RouteData.RequiredGem[],
   gemLinks: RouteData.GemLinkGroup[],
   parentElement: Element,
@@ -82,6 +83,15 @@ function processSkills(
       const attribute = gemElement.attributes.getNamedItem("gemId");
       if (attribute) {
         const gemId = MapGemId(attribute.value);
+        const gemData = Data.Gems[gemId];
+        if (!gemData) {
+          // Gems newer than common/data/json/gems.json
+          skippedGems.add(
+            gemElement.getAttribute("nameSpec") || attribute.value
+          );
+          continue;
+        }
+
         const note = cleanPobText(
           recentEmptySkillLabel || parentTitle || skillLabel || ""
         );
@@ -95,7 +105,7 @@ function processSkills(
           requiredGems.push(gem);
         }
 
-        if (Data.Gems[gemId].is_support) secondaryGemIds.push(gemId);
+        if (gemData.is_support) secondaryGemIds.push(gemId);
         else primaryGemIds.push(gemId);
       }
     }
@@ -159,21 +169,32 @@ export interface PobData {
   gemLinks: RouteData.GemLinkGroup[];
 }
 
-export function processPob(pobCode: string): PobData | undefined {
+export interface PobResult {
+  pobData: PobData;
+  // Gem names (or ids) not found in the app's gem data
+  skippedGems: string[];
+}
+
+export function processPob(pobCode: string): PobResult {
   let doc;
   try {
     doc = decodePathOfBuildingCode(pobCode);
   } catch (e) {
-    return undefined;
+    throw new Error("Not a valid Path of Building code");
   }
+  if (doc.getElementsByTagName("parsererror").length > 0)
+    throw new Error("Not a valid Path of Building code");
 
-  const buildElement = Array.from(doc.getElementsByTagName("Build"));
+  const buildElement = doc.getElementsByTagName("Build")[0];
+  const characterClass = buildElement?.getAttribute("className");
+  if (!characterClass || !Data.Characters[characterClass])
+    throw new Error(
+      `Unsupported character class: ${characterClass || "missing"}`
+    );
 
-  const characterClass =
-    buildElement[0].attributes.getNamedItem("className")?.value!;
+  const bandit = buildElement.getAttribute("bandit") || "None";
 
-  const bandit =
-    buildElement[0].attributes.getNamedItem("bandit")?.value || "None";
+  const skippedGems = new Set<string>();
 
   const requiredGems: RouteData.RequiredGem[] = [];
   const gemLinks: RouteData.GemLinkGroup[] = [];
@@ -181,6 +202,7 @@ export function processPob(pobCode: string): PobData | undefined {
   if (skillSetElements.length > 0) {
     for (const skillSetElement of skillSetElements) {
       processSkills(
+        skippedGems,
         requiredGems,
         gemLinks,
         skillSetElement,
@@ -190,6 +212,7 @@ export function processPob(pobCode: string): PobData | undefined {
     }
   } else {
     processSkills(
+      skippedGems,
       requiredGems,
       gemLinks,
       doc.documentElement,
@@ -201,14 +224,18 @@ export function processPob(pobCode: string): PobData | undefined {
   const buildTrees: RouteData.BuildTree[] = [];
   const specElements = Array.from(doc.getElementsByTagName("Spec"));
   for (const specElement of specElements) {
+    const version = specElement.getAttribute("treeVersion");
+    const url = specElement.getElementsByTagName("URL")[0]?.textContent?.trim();
+    if (!version || !url) continue;
+
     buildTrees.push({
       name: cleanPobText(specElement.getAttribute("title") || "Default"),
-      version: specElement.getAttribute("treeVersion")!,
-      url: specElement.getElementsByTagName("URL")[0].textContent?.trim()!,
+      version,
+      url,
     });
   }
 
-  return {
+  const pobData: PobData = {
     buildData: {
       characterClass: characterClass,
       bandit: bandit as RouteData.BuildData["bandit"],
@@ -219,4 +246,6 @@ export function processPob(pobCode: string): PobData | undefined {
     buildTrees,
     gemLinks,
   };
+
+  return { pobData, skippedGems: Array.from(skippedGems) };
 }
