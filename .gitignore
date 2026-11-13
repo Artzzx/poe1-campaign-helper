@@ -25,3 +25,6 @@ dist-ssr
 
 .env
 /common/data/tree/*.json
+# Desktop overlay
+web/dist-overlay
+overlay/release

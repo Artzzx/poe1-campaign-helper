@@ -1,0 +1,35 @@
+name: Build overlay (Windows)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["overlay-v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build installer and portable exe
+        run: npm run overlay:dist
+        env:
+          # No code-signing certificate: produce unsigned builds.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: poe-campaign-overlay-windows
+          path: overlay/release/*.exe
+          if-no-files-found: error

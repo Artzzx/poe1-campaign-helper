@@ -2,8 +2,14 @@
   "name": "poe1-campaign-helper",
   "workspaces": [
     "seeding",
-    "web"
+    "web",
+    "overlay"
   ],
+  "scripts": {
+    "overlay": "npm run start -w overlay",
+    "overlay:dev": "npm run dev -w overlay",
+    "overlay:dist": "npm run dist -w overlay"
+  },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^4.3.0",
     "prettier": "^2.8.8"

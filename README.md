@@ -7,6 +7,17 @@ A comprehensive Path of Exile leveling guide application with interactive zone l
 **[🚀 Use the app directly in your browser](https://nicolasbagatello.github.io/poe1-campaign-helper/)**  
 *No installation required - start planning your Path of Exile campaign immediately!*
 
+## 🎮 Desktop overlay
+
+Play with the route on top of the game: current step, upcoming steps and the
+zone layout in a small always-on-top window, with hotkeys and auto-advance
+from `Client.txt`. See **[OVERLAY.md](OVERLAY.md)**.
+
+```bash
+npm install
+npm run overlay
+```
+
 ## ✨ Features
 
 ### 📍 **Interactive Zone Layout Guides**

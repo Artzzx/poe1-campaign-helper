@@ -1,0 +1,51 @@
+{
+  "name": "poe1-campaign-overlay",
+  "productName": "PoE Campaign Overlay",
+  "version": "1.0.0",
+  "description": "In-game overlay for the PoE1 campaign helper",
+  "author": "poe1-campaign-helper contributors",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "build:web": "npm run build:overlay -w web",
+    "start": "npm run build:web && electron .",
+    "dev": "concurrently -k -n web,overlay \"npm run dev -w web\" \"wait-on http://localhost:5173/poe1-campaign-helper/ && electron . --dev\"",
+    "dist": "npm run build:web && electron-builder --win portable nsis"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.7",
+    "electron": "45.3.2",
+    "electron-builder": "^26.18.0",
+    "wait-on": "^9.5.1"
+  },
+  "build": {
+    "appId": "io.github.poe1-campaign-helper.overlay",
+    "productName": "PoE Campaign Overlay",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "client-log.cjs",
+      "package.json",
+      "!**/node_modules/**"
+    ],
+    "extraResources": [
+      {
+        "from": "../web/dist-overlay",
+        "to": "web"
+      }
+    ],
+    "win": {
+      "icon": "../web/public/android-chrome-512x512.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.exe"
+    }
+  }
+}

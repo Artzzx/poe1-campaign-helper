@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:overlay": "tsc && vite build --mode overlay --outDir dist-overlay --emptyOutDir"
   },
   "dependencies": {
     "@microsoft/applicationinsights-react-js": "^17.1.2",

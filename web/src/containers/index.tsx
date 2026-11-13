@@ -6,7 +6,7 @@ import { withBlank } from "../utility/withBlank";
 import { withScrollRestoration } from "../utility/withScrollRestoration";
 import { Suspense, lazy, useEffect } from "react";
 import { ErrorBoundary } from "react-error-boundary";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -15,8 +15,21 @@ const RoutesContainer = pipe(
   withScrollRestoration
 )(lazy(() => import("./Routes")));
 const BuildContainer = withBlank(lazy(() => import("./Build")));
+const OverlayContainer = lazy(() => import("./Overlay"));
 
 export function App() {
+  const location = useLocation();
+
+  // Compact in-game overlay: no navbar, no page chrome.
+  if (location.pathname === "/overlay")
+    return (
+      <Suspense fallback={null}>
+        <ErrorBoundary FallbackComponent={ErrorFallback}>
+          <Page title="Exile Leveling - Overlay" component={<OverlayContainer />} />
+        </ErrorBoundary>
+      </Suspense>
+    );
+
   return (
     <>
       <Navbar />

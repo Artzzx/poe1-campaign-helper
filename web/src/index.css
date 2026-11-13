@@ -95,3 +95,14 @@ a:link,
 a:visited {
   color: var(--on-primary);
 }
+
+/* Electron overlay window: let the desktop/game show through. */
+html.overlay-mode,
+html.overlay-mode body {
+  background-color: transparent;
+  overflow: hidden;
+}
+html.overlay-mode #root {
+  max-width: none;
+  padding: 0;
+}
