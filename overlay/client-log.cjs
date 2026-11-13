@@ -32,7 +32,7 @@ class ClientLogWatcher extends EventEmitter {
     this.path = path;
     this.partial = "";
     try {
-      const { size } = await fs.promises.stat(path);
+      const size = await this.currentSize();
       this.position = size;
       await this.emitLastKnownArea(size);
     } catch (err) {
@@ -64,17 +64,18 @@ class ClientLogWatcher extends EventEmitter {
     if (this.reading || !this.path) return;
     this.reading = true;
     try {
-      const { size } = await fs.promises.stat(this.path);
+      const size = await this.currentSize();
       if (size < this.position) {
         // File was truncated / recreated (game reinstall, log cleared).
         this.position = 0;
         this.partial = "";
       }
-      if (size > this.position) {
-        // If we fell far behind, skip to the tail instead of replaying it all.
-        if (size - this.position > MAX_CHUNK) this.position = size - MAX_CHUNK;
-        const text = await this.readRange(this.position, size);
-        this.position = size;
+      // If we fell far behind, skip to the tail instead of replaying it all.
+      if (size - this.position > MAX_CHUNK) this.position = size - MAX_CHUNK;
+      // Read until EOF instead of up to `size`: the size can lag behind what
+      // the game has already written (see currentSize).
+      const text = await this.readFrom(this.position);
+      if (text.length > 0) {
         const lines = (this.partial + text).split(/\r?\n/);
         this.partial = lines.pop() ?? "";
         for (const line of lines) {
@@ -91,6 +92,39 @@ class ClientLogWatcher extends EventEmitter {
       // Missing file etc. — keep polling quietly; the game may not be installed yet.
     } finally {
       this.reading = false;
+    }
+  }
+
+  // Size from an open handle (fstat). A path-based fs.stat on Windows can
+  // return the size cached in the directory entry, which NTFS doesn't update
+  // while PoE keeps Client.txt open and appends to it: the log then looks
+  // frozen at whatever size it had when the game opened it.
+  async currentSize() {
+    const handle = await fs.promises.open(this.path, "r");
+    try {
+      return (await handle.stat()).size;
+    } finally {
+      await handle.close();
+    }
+  }
+
+  /** Reads from `start` to the real end of the file and advances position. */
+  async readFrom(start) {
+    const handle = await fs.promises.open(this.path, "r");
+    try {
+      const chunks = [];
+      let position = start;
+      for (;;) {
+        const buffer = Buffer.alloc(64 * 1024);
+        const { bytesRead } = await handle.read(buffer, 0, buffer.length, position);
+        if (bytesRead === 0) break;
+        chunks.push(buffer.subarray(0, bytesRead));
+        position += bytesRead;
+      }
+      this.position = position;
+      return Buffer.concat(chunks).toString("utf8");
+    } finally {
+      await handle.close();
     }
   }
 
